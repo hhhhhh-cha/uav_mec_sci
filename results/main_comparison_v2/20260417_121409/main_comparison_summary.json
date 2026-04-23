@@ -1,0 +1,52 @@
+[
+  {
+    "method": "Random",
+    "num_eval_episodes": 100,
+    "avg_reward": -3255803818.699252,
+    "avg_delay": 1328992.3881776957,
+    "avg_energy": 507.18594316214956,
+    "avg_deadline_violation": 597783.9541262048,
+    "feasible_ratio": 0.0,
+    "runtime_sec": 2.254523277282715
+  },
+  {
+    "method": "Greedy_Simple",
+    "num_eval_episodes": 100,
+    "avg_reward": -484441137.6741458,
+    "avg_delay": 201292.83096409496,
+    "avg_energy": 416.7060917910656,
+    "avg_deadline_violation": 81844.81223300709,
+    "feasible_ratio": 0.0,
+    "runtime_sec": 2.2565016746520996
+  },
+  {
+    "method": "Greedy",
+    "num_eval_episodes": 100,
+    "avg_reward": -332724242.99765307,
+    "avg_delay": 139194.41010147153,
+    "avg_energy": 505.59201787287884,
+    "avg_deadline_violation": 54300.863086274236,
+    "feasible_ratio": 0.0,
+    "runtime_sec": 2.406428098678589
+  },
+  {
+    "method": "Pure_MADDPG",
+    "num_eval_episodes": 100,
+    "avg_reward": -16389378355.542385,
+    "avg_delay": 7052650.113407157,
+    "avg_energy": 393.044389632946,
+    "avg_deadline_violation": 2284063.2766004065,
+    "feasible_ratio": 0.0,
+    "runtime_sec": 3.57847261428833
+  },
+  {
+    "method": "Proposed_full_stage2_v2",
+    "num_eval_episodes": 100,
+    "avg_reward": -514505550.62250674,
+    "avg_delay": 215860.5254829103,
+    "avg_energy": 505.6400724192027,
+    "avg_deadline_violation": 82749.92173586875,
+    "feasible_ratio": 0.0,
+    "runtime_sec": 15.840606689453125
+  }
+]
