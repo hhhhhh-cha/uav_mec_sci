@@ -157,8 +157,8 @@ def build_surrogate_full_action_tensor(
 # =========================================================
 def main():
     device = "cpu"
-    torch.manual_seed(92)
-    np.random.seed(92)
+    torch.manual_seed(72)
+    np.random.seed(72)
 
     # -------------------------------------------------
     # Env config
@@ -181,10 +181,10 @@ def main():
         task_local_cpu_max=6.0e3,
         uav_energy_min=2600.0,
         uav_energy_max=3800.0,
-        seed=92,
+        seed=72,
     )
 
-    obs = env.reset(seed=92)
+    obs = env.reset(seed=72)
     state = obs["raw_state"]
 
     obs_dim = get_observation_dim(state)
@@ -265,11 +265,11 @@ def main():
     if policy.ratio_head is not None:
         learnable_params += list(policy.ratio_head.parameters())
 
-    actor_opt = optim.Adam(learnable_params, lr=5e-4)
-    critic_opt = optim.Adam(critic.parameters(), lr=1e-4)
-
-    # actor_opt = optim.Adam(learnable_params, lr=1e-4)
+    # actor_opt = optim.Adam(learnable_params, lr=5e-4)
     # critic_opt = optim.Adam(critic.parameters(), lr=1e-4)
+
+    actor_opt = optim.Adam(learnable_params, lr=1e-4)
+    critic_opt = optim.Adam(critic.parameters(), lr=1e-4)
 
     mse_loss = nn.MSELoss()
 
@@ -285,7 +285,7 @@ def main():
     # -------------------------------------------------
     # Hyperparameters
     # -------------------------------------------------
-    gamma = 0.99
+    gamma = 0.95
     tau = 0.005
     batch_size = 32
     num_episodes = 500
@@ -297,7 +297,7 @@ def main():
     # -------------------------------------------------
     # Log / save dirs
     # -------------------------------------------------
-    run_name = "500_proposed_full_stage2_seed92_run1"
+    run_name = "loss_proposed_full_stage2_seed72_run1"
     result_dir = os.path.join("results", "convergence_training", run_name)
     os.makedirs(result_dir, exist_ok=True)
 
@@ -340,8 +340,12 @@ def main():
     # actor_policy_coef = 0.1
     # actor_move_sched_bc_coef = 0.2
     # ratio_bc_coef = 0.2
-    actor_policy_coef = 0.05
-    actor_move_sched_bc_coef = 0.2
+    # actor_policy_coef = 0.05
+    # actor_move_sched_bc_coef = 0.2
+    # ratio_bc_coef = 0.2
+
+    actor_policy_coef = 0.03
+    actor_move_sched_bc_coef = 0.3
     ratio_bc_coef = 0.2
     actor_l2_coef = 1e-5
 
@@ -364,7 +368,7 @@ def main():
     # Training
     # -------------------------------------------------
     for ep in range(num_episodes):
-        obs = env.reset(seed=92 + ep)
+        obs = env.reset(seed=72 + ep)
         done = False
 
         episode_reward = 0.0
@@ -424,25 +428,25 @@ def main():
             else:
                 next_flat_action = np.zeros((critic_action_dim,), dtype=np.float32)
 
-            buffer.add(
-                obs=obs_vec,
-                action=flat_action,
-                reward=reward,
-                next_obs=next_obs_vec,
-                next_action=next_flat_action,
-                done=float(done),
-            )
-
-            # scaled_reward = reward * reward_scale
-
             # buffer.add(
             #     obs=obs_vec,
             #     action=flat_action,
-            #     reward=scaled_reward,
+            #     reward=reward,
             #     next_obs=next_obs_vec,
             #     next_action=next_flat_action,
             #     done=float(done),
             # )
+
+            scaled_reward = reward * reward_scale
+
+            buffer.add(
+                obs=obs_vec,
+                action=flat_action,
+                reward=scaled_reward,
+                next_obs=next_obs_vec,
+                next_action=next_flat_action,
+                done=float(done),
+            )
 
             # -----------------------------------------
             # critic update from replay
@@ -461,16 +465,16 @@ def main():
                     target_q = target_critic(next_obs_b, next_action_b)
                     y = reward_b + gamma * (1.0 - done_b) * target_q
 
-                q_val = critic(obs_b, action_b)
-                critic_loss = mse_loss(q_val, y)
-
                 # q_val = critic(obs_b, action_b)
-                # critic_loss = F.smooth_l1_loss(q_val, y)
+                # critic_loss = mse_loss(q_val, y)
+
+                q_val = critic(obs_b, action_b)
+                critic_loss = F.smooth_l1_loss(q_val, y)
 
                 critic_opt.zero_grad()
                 critic_loss.backward()
-                torch.nn.utils.clip_grad_norm_(critic.parameters(), max_norm=5.0)
-                # torch.nn.utils.clip_grad_norm_(critic.parameters(), max_norm=1.0)
+                # torch.nn.utils.clip_grad_norm_(critic.parameters(), max_norm=5.0)
+                torch.nn.utils.clip_grad_norm_(critic.parameters(), max_norm=1.0)
                 critic_opt.step()
 
                 episode_critic_loss += float(critic_loss.item())
@@ -523,8 +527,8 @@ def main():
 
             actor_opt.zero_grad()
             total_actor_loss.backward()
-            torch.nn.utils.clip_grad_norm_(learnable_params, max_norm=5.0)
-            # torch.nn.utils.clip_grad_norm_(learnable_params, max_norm=1.0)
+            # torch.nn.utils.clip_grad_norm_(learnable_params, max_norm=5.0)
+            torch.nn.utils.clip_grad_norm_(learnable_params, max_norm=1.0)
             actor_opt.step()
 
             soft_update_policy(target_policy, policy, tau=tau)

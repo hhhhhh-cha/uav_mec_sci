@@ -1,1 +1,23 @@
 .venv/
+results/
+
+__pycache__/
+*.pyc
+
+checkpoints/
+*.pth
+*.pt
+
+*.log
+eval_log.csv
+# Python cache
+__pycache__/
+*.pyc
+
+# Model checkpoints
+checkpoints/
+*.pth
+*.pt
+
+# Logs / temporary outputs
+*.log

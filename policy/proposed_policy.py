@@ -855,7 +855,9 @@ def build_default_proposed_policy(
         hidden_dim=128,
         min_ratio=0.02,
         max_ratio=0.98,
-        residual_scale=1.0,
+        # Increase residual capacity so the ratio head can move upward from
+        # a conservative prior when Stage-2 ratio regularization is active.
+        residual_scale=2.0,
     ).to(device)
 
     mode = "network" if actor_net is not None else "placeholder"

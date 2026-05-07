@@ -17,6 +17,7 @@ from model.mlp_actor import MLPActor
 from model.mlp_critic import MLPCritic
 from model.proposed_obs_builder import build_global_observation, get_observation_dim
 
+
 from solver.bandwidth_solver import solve_bandwidth_allocation
 from solver.cpu_solver import solve_cpu_allocation
 
@@ -27,7 +28,29 @@ from train.train_proposed_full_stage1 import (
     flatten_full_action,
     soft_update,
 )
+from train.train_proposed_full_stage2_v2_safemobility import apply_safe_mobility_projection
 
+
+HARD_FEASIBILITY_KEYS = [
+    "ratio_violation",
+    "assoc_violation",
+    "schedule_violation",
+    "candidate_violation",
+    "bw_violation",
+    "cpu_violation",
+    "rate_violation",
+    "deadline_violation",
+    "move_violation",
+    "boundary_violation",
+    "collision_violation",
+    "nan_count",
+]
+
+def is_hard_feasible(report: Dict[str, Any], tol: float = 1e-8) -> bool:
+    for key in HARD_FEASIBILITY_KEYS:
+        if float(report.get(key, 0.0)) > tol:
+            return False
+    return True
 
 # =========================================================
 # Pure MADDPG helpers
@@ -323,7 +346,7 @@ def evaluate_pure_policy_rollout(
             omega1=omega1,
             omega2=omega2,
         )
-
+        action_full = apply_safe_mobility_projection(action_full, state)
         obs, reward, done, info = env.step(action_full)
 
         report = info["report"]
@@ -333,7 +356,7 @@ def evaluate_pure_policy_rollout(
         total_delay += float(metrics["delay_sys"])
         total_energy += float(metrics["energy_sys"])
         total_deadline_violation += float(report.get("deadline_violation", 0.0))
-        feasible_count += int(report.get("ok", False))
+        feasible_count += int(is_hard_feasible(report))
         step_count += 1
 
         total_ratio_violation += float(report.get("ratio_violation", 0.0))
@@ -373,7 +396,7 @@ def main():
     torch.manual_seed(72)
     np.random.seed(72)
 
-    cpu_omega1 = 50.0
+    cpu_omega1 = 10.0
     cpu_omega2 = 1.0
 
     # -------------------------------------------------
@@ -447,10 +470,10 @@ def main():
     # -------------------------------------------------
     # Hyperparameters
     # -------------------------------------------------
-    gamma = 0.99
+    gamma = 0.95
     tau = 0.005
     batch_size = 32
-    num_episodes = 40
+    num_episodes = 500
     eval_every = 5
     actor_policy_coef = 0.1
     actor_l2_coef = 1e-5
@@ -494,6 +517,10 @@ def main():
             "avg_cpu_violation",
             "avg_rate_violation",
             "avg_nan_count",
+            "avg_move_violation",
+            "avg_boundary_violation",
+            "avg_collision_violation",
+            "avg_energy_budget_overrun_debug",
         ])
 
     best_actor_state = copy.deepcopy(actor.state_dict())
@@ -563,6 +590,7 @@ def main():
                 omega1=cpu_omega1,
                 omega2=cpu_omega2,
             )
+            action_full = apply_safe_mobility_projection(action_full, state)
 
             flat_action = flatten_full_action(action_full)
 
@@ -601,7 +629,7 @@ def main():
                     omega1=cpu_omega1,
                     omega2=cpu_omega2,
                 )
-
+                next_action_full = apply_safe_mobility_projection(next_action_full, next_state)
                 next_flat_action = flatten_full_action(next_action_full)
             else:
                 next_flat_action = np.zeros((critic_action_dim,), dtype=np.float32)

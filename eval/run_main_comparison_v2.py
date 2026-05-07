@@ -86,7 +86,7 @@ def make_run_result_dir() -> Path:
 @dataclass
 class ComparisonConfig:
     seed: int = 72
-    num_eval_episodes: int = 100
+    num_eval_episodes: int = 200
 
     # env params
     M: int = 3

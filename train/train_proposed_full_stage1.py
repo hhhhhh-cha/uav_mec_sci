@@ -379,7 +379,13 @@ def build_ratio_branch_inputs(
     return token_tensor, mask_tensor, task_feat_tensor, uav_feat_tensor
 
 
-def forward_ratio_branch(policy: ProposedPolicy, state: Dict[str, Any], access_assoc: np.ndarray) -> torch.Tensor:
+# def forward_ratio_branch(policy: ProposedPolicy, state: Dict[str, Any], access_assoc: np.ndarray) -> torch.Tensor:
+def forward_ratio_branch(
+    policy: ProposedPolicy,
+    state: Dict[str, Any],
+    access_assoc: np.ndarray,
+    use_hard_min: bool = True,
+) -> torch.Tensor:
     """
     Differentiable forward aligned with deployment path:
         encoder -> fusion -> ratio_head(prior_ratio=...)
@@ -410,18 +416,41 @@ def forward_ratio_branch(policy: ProposedPolicy, state: Dict[str, Any], access_a
         uav_feat=uav_feat_tensor,
     )
 
+    # offload_ratio_pred = policy.ratio_head(
+    #     fused_feature,
+    #     prior_ratio=prior_tensor,
+    #     temperature=1.0,
+    #     hard_min=policy.ratio_floor,
+    # ).squeeze(-1)
+
+    # offload_ratio_pred = torch.clamp(
+    #     offload_ratio_pred,
+    #     min=policy.ratio_floor,
+    #     max=policy.ratio_ceiling,
+    # )
+    # return offload_ratio_pred
+
     offload_ratio_pred = policy.ratio_head(
         fused_feature,
         prior_ratio=prior_tensor,
         temperature=1.0,
-        hard_min=policy.ratio_floor,
+        hard_min=policy.ratio_floor if use_hard_min else None,
     ).squeeze(-1)
 
-    offload_ratio_pred = torch.clamp(
-        offload_ratio_pred,
-        min=policy.ratio_floor,
-        max=policy.ratio_ceiling,
-    )
+    if use_hard_min:
+        offload_ratio_pred = torch.clamp(
+            offload_ratio_pred,
+            min=policy.ratio_floor,
+            max=policy.ratio_ceiling,
+        )
+    else:
+        # 训练 actor / ratio head 时不要在下界处截断梯度
+        offload_ratio_pred = torch.clamp(
+            offload_ratio_pred,
+            min=1e-4,
+            max=policy.ratio_ceiling,
+        )
+
     return offload_ratio_pred
 
 
@@ -520,7 +549,7 @@ class FullReplayBuffer:
 # Evaluation
 # =========================================================
 @torch.no_grad()
-def evaluate_full_policy_rollout(env: MultiUavMecEnv, policy: ProposedPolicy, seed: int = 123):
+def evaluate_full_policy_rollout(env: MultiUavMecEnv, policy: ProposedPolicy, seed: int = 72):
     obs = env.reset(seed=seed)
     done = False
 
@@ -623,7 +652,7 @@ def main():
         K=16,
         episode_length=5,
         cpu_mode="kkt",
-        omega1=50.0,
+        omega1=10.0,
         omega2=1.0,
         # deadline_scale=2.0,
         deadline_scale=5.0,
@@ -722,7 +751,7 @@ def main():
     gamma = 0.99
     tau = 0.005
     batch_size = 32
-    num_episodes = 20
+    num_episodes = 200
 
     # actor_move_sched_coef = 1.0
     # ratio_bc_coef = 1.0
@@ -929,7 +958,7 @@ def main():
                 K=16,
                 episode_length=5,
                 cpu_mode="kkt",
-                omega1=50.0,
+                omega1=10.0,
                 omega2=1.0,
                 # deadline_scale=2.0,
                 deadline_scale=5.0,
