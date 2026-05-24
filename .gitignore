@@ -21,3 +21,5 @@ checkpoints/
 
 # Logs / temporary outputs
 *.log
+
+*.zip

@@ -1,0 +1,194 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd ~/projects/uav_mec_sci
+source .venv/bin/activate
+
+export PYTHONPATH=$(pwd)
+
+# ============================================================
+# Formal 10-training-seed experiment
+# ============================================================
+SEEDS=(42 52 62 72 82 92 102 112 122 132)
+EVAL_SEEDS="42,52,62,72,82,92,102,112,122,132"
+
+mkdir -p logs/formal_10seed
+mkdir -p results/main_comparison_sci_v6/formal_10seed_each_trainseed
+
+# 如果你的 pure MADDPG 入口文件不是 train.train_pure_maddpg，
+# 比如你实际用的是 train.train_pure_maddpg1，就只改这一行：
+PURE_MODULE="train.train_pure_maddpg"
+
+# ============================================================
+# 1) Train Proposed: Stage-1 + Stage-2 for each training seed
+# ============================================================
+for SEED in "${SEEDS[@]}"
+do
+  echo
+  echo "######################################################################"
+  echo "# [1/4] Proposed Stage-1 training | train seed = ${SEED}"
+  echo "######################################################################"
+
+  TORCH_NUM_THREADS=1 \
+  DEVICE=auto \
+  SEED=${SEED} \
+  EVAL_SEED=999 \
+  M=3 \
+  K=16 \
+  NUM_EPISODES=200 \
+  EPISODE_LENGTH=20 \
+  CPU_MODE=kkt \
+  OMEGA1=50 \
+  OMEGA2=1 \
+  DEADLINE_SCALE=2.5 \
+  TASK_LOCAL_CPU_MIN=2000 \
+  TASK_LOCAL_CPU_MAX=5000 \
+  RUN_NAME=proposed_full_stage1_main_d25_seed${SEED}_ep200_formal10 \
+  CKPT_PREFIX=proposed_full_stage1_main_d25_seed${SEED}_ep200_formal10 \
+  python3 -m train.train_proposed_full_stage1_converge \
+    2>&1 | tee logs/formal_10seed/proposed_stage1_seed${SEED}.log
+
+  echo
+  echo "######################################################################"
+  echo "# [CHECK] Proposed Stage-1 checkpoints | train seed = ${SEED}"
+  echo "######################################################################"
+
+  test -f checkpoints/proposed_full_stage1_main_d25_seed${SEED}_ep200_formal10_best_actor.pth
+  test -f checkpoints/proposed_full_stage1_main_d25_seed${SEED}_ep200_formal10_best_encoder.pth
+  test -f checkpoints/proposed_full_stage1_main_d25_seed${SEED}_ep200_formal10_best_fusion.pth
+  test -f checkpoints/proposed_full_stage1_main_d25_seed${SEED}_ep200_formal10_best_ratio_head.pth
+
+  ls -lh checkpoints/proposed_full_stage1_main_d25_seed${SEED}_ep200_formal10_best_actor.pth
+  ls -lh checkpoints/proposed_full_stage1_main_d25_seed${SEED}_ep200_formal10_best_encoder.pth
+  ls -lh checkpoints/proposed_full_stage1_main_d25_seed${SEED}_ep200_formal10_best_fusion.pth
+  ls -lh checkpoints/proposed_full_stage1_main_d25_seed${SEED}_ep200_formal10_best_ratio_head.pth
+
+  echo
+  echo "######################################################################"
+  echo "# [2/4] Proposed Stage-2 v6 training | train seed = ${SEED}"
+  echo "######################################################################"
+
+  TORCH_NUM_THREADS=1 \
+  DEVICE=auto \
+  SEED=${SEED} \
+  EVAL_SEED=999 \
+  M=3 \
+  K=16 \
+  NUM_EPISODES=700 \
+  EPISODE_LENGTH=20 \
+  CPU_MODE=kkt \
+  OMEGA1=50 \
+  OMEGA2=1 \
+  DEADLINE_SCALE=2.5 \
+  TASK_LOCAL_CPU_MIN=2000 \
+  TASK_LOCAL_CPU_MAX=5000 \
+  STAGE1_PREFIX=proposed_full_stage1_main_d25_seed${SEED}_ep200_formal10 \
+  STRICT_STAGE1=1 \
+  RUN_NAME=proposed_full_stage2_main_d25_seed${SEED}_ep700_v6_model_refine_formal10 \
+  CKPT_PREFIX=proposed_full_stage2_main_d25_seed${SEED}_ep700_v6_model_refine_formal10 \
+  MODEL_REFINE=1 \
+  MODEL_REFINE_EVAL=1 \
+  MODEL_REFINE_MAX_TASKS=6 \
+  MODEL_REFINE_RATIO=1 \
+  MODEL_REFINE_SCHED=1 \
+  python3 -m train.train_proposed_full_stage2_converge_v6_model_refine \
+    2>&1 | tee logs/formal_10seed/proposed_stage2_seed${SEED}.log
+
+  echo
+  echo "######################################################################"
+  echo "# [CHECK] Proposed Stage-2 checkpoints | train seed = ${SEED}"
+  echo "######################################################################"
+
+  test -f checkpoints/proposed_full_stage2_main_d25_seed${SEED}_ep700_v6_model_refine_formal10_best_actor.pth
+  test -f checkpoints/proposed_full_stage2_main_d25_seed${SEED}_ep700_v6_model_refine_formal10_best_encoder.pth
+  test -f checkpoints/proposed_full_stage2_main_d25_seed${SEED}_ep700_v6_model_refine_formal10_best_fusion.pth
+  test -f checkpoints/proposed_full_stage2_main_d25_seed${SEED}_ep700_v6_model_refine_formal10_best_ratio_head.pth
+
+  ls -lh checkpoints/proposed_full_stage2_main_d25_seed${SEED}_ep700_v6_model_refine_formal10_best_actor.pth
+  ls -lh checkpoints/proposed_full_stage2_main_d25_seed${SEED}_ep700_v6_model_refine_formal10_best_encoder.pth
+  ls -lh checkpoints/proposed_full_stage2_main_d25_seed${SEED}_ep700_v6_model_refine_formal10_best_fusion.pth
+  ls -lh checkpoints/proposed_full_stage2_main_d25_seed${SEED}_ep700_v6_model_refine_formal10_best_ratio_head.pth
+
+done
+
+
+# ============================================================
+# 2) Train Pure MADDPG for each training seed
+# ============================================================
+for SEED in "${SEEDS[@]}"
+do
+  echo
+  echo "######################################################################"
+  echo "# [3/4] Pure MADDPG training | train seed = ${SEED}"
+  echo "######################################################################"
+
+  TORCH_NUM_THREADS=1 \
+  DEVICE=auto \
+  SEED=${SEED} \
+  EVAL_SEED=999 \
+  M=3 \
+  K=16 \
+  NUM_EPISODES=700 \
+  EPISODE_LENGTH=20 \
+  CPU_MODE=kkt \
+  OMEGA1=50 \
+  OMEGA2=1 \
+  DEADLINE_SCALE=2.5 \
+  TASK_LOCAL_CPU_MIN=2000 \
+  TASK_LOCAL_CPU_MAX=5000 \
+  RUN_NAME=pure_maddpg_main_d25_seed${SEED}_ep700_formal10 \
+  CKPT_PREFIX=pure_maddpg_main_d25_seed${SEED}_ep700_formal10 \
+  python3 -m ${PURE_MODULE} \
+    2>&1 | tee logs/formal_10seed/pure_maddpg_seed${SEED}.log
+
+  echo
+  echo "######################################################################"
+  echo "# [CHECK] Pure MADDPG checkpoint | train seed = ${SEED}"
+  echo "######################################################################"
+
+  test -f checkpoints/pure_maddpg_main_d25_seed${SEED}_ep700_formal10_best_actor.pth
+  ls -lh checkpoints/pure_maddpg_main_d25_seed${SEED}_ep700_formal10_best_actor.pth
+
+done
+
+
+# ============================================================
+# 3) Evaluate each trained seed over the same 10 eval seeds
+# ============================================================
+for TRAIN_SEED in "${SEEDS[@]}"
+do
+  echo
+  echo "######################################################################"
+  echo "# [4/4] Main comparison evaluation | train seed = ${TRAIN_SEED}"
+  echo "######################################################################"
+
+  python3 ./eval/run_main_comparison_sci_v6.py \
+    --stage2-prefix proposed_full_stage2_main_d25_seed${TRAIN_SEED}_ep700_v6_model_refine_formal10 \
+    --stage1-prefix proposed_full_stage1_main_d25_seed${TRAIN_SEED}_ep200_formal10 \
+    --pure-prefix pure_maddpg_main_d25_seed${TRAIN_SEED}_ep700_formal10 \
+    --seeds ${EVAL_SEEDS} \
+    --deadline-scale 2.5 \
+    --task-local-cpu-min 2000 \
+    --task-local-cpu-max 5000 \
+    --episode-length 20 \
+    --include-refine-controls \
+    --out results/main_comparison_sci_v6/formal_10seed_each_trainseed/trainseed${TRAIN_SEED}_eval10 \
+    2>&1 | tee logs/formal_10seed/main_comparison_trainseed${TRAIN_SEED}_eval10.log
+
+done
+
+
+echo
+echo "######################################################################"
+echo "# Formal 10-training-seed experiment finished."
+echo "######################################################################"
+echo "Check training logs:"
+echo "  logs/formal_10seed/"
+echo
+echo "Check Proposed convergence logs:"
+echo "  results/convergence_training/proposed_full_stage1_main_d25_seed*_ep200_formal10/"
+echo "  results/convergence_training/proposed_full_stage2_main_d25_seed*_ep700_v6_model_refine_formal10/"
+echo
+echo "Check comparison results:"
+echo "  results/main_comparison_sci_v6/formal_10seed_each_trainseed/"
+

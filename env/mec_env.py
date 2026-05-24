@@ -55,7 +55,7 @@ class MultiUavMecEnv:
         cpu_mode: str = "kkt",   # "kkt" or "prop"
         prop_rho: float = 0.45,
         # omega1: float = 100.0,
-        omega1: float = 10.0,
+        omega1: float = 50.0,
         omega2: float = 1.0,
         penalty_coeff: float = 50.0,
         R_min: float = 0.05,
